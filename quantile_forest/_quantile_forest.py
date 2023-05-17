@@ -364,6 +364,10 @@ class BaseForestQuantileRegressor(ForestRegressor):
         unsampled_indices = _generate_unsampled_indices(sample_indices, duplicates=duplicates)
         return np.asarray(unsampled_indices)
 
+    # Fake operation to test build
+    def test_op(self):
+        return("Hello world")
+    
     # Test comment
     def predict(
         self,
@@ -472,6 +476,144 @@ class BaseForestQuantileRegressor(ForestRegressor):
                 warnings.simplefilter("ignore", UserWarning)
                 X_leaves = self.apply(X)
             X_indices = None
+
+        y_pred = self.forest_.predict(
+            quantiles,
+            X_leaves,
+            X_indices,
+            interpolation,
+            weighted_leaves,
+            weighted_quantile,
+            aggregate_leaves_first,
+        )
+
+        if y_pred.shape[1] == 1:
+            y_pred = np.squeeze(y_pred, axis=1)
+
+        return y_pred
+    
+    # New method
+    def ecdf(
+        self,
+        X,
+        quantiles=0.5,
+        interpolation="linear",
+        weighted_quantile=True,
+        weighted_leaves=True,
+        aggregate_leaves_first=True,
+        oob_score=False,
+        indices=None,
+        duplicates=None,
+    ):
+        """Predict quantiles for X.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix} of shape (n_samples, n_features)
+            The input samples. Internally, its dtype will be converted to
+            ``dtype=np.float32``. If a sparse matrix is provided, it will be
+            converted into a sparse ``csr_matrix``.
+
+        quantiles : float or list, default=0.5
+            The quantile or list of quantiles that the model tries to predict.
+            Each quantile must be strictly between 0 and 1. If None, the model
+            predicts the mean. By default, the model predicts the median.
+
+        interpolation : {"linear", "lower", "higher", "midpoint", "nearest"}, \
+                default="linear"
+            Specifies the interpolation method to use when the desired
+            quantile lies between two data points ``i < j``:
+
+            - If "linear", then ``i + (j - i) * fraction``, where ``fraction``
+              is the fractional part of the index surrounded by ``i`` and
+              ``j``.
+            - If "lower", then ``i``.
+            - If "higher", then ``j``.
+            - If "nearest", then ``i`` or ``j``, whichever is nearest.
+            - If "midpoint", then ``(i + j) / 2``.
+
+        weighted_quantile : bool, default=True
+            Calculate a weighted quantile. Weighted quantiles are computed by
+            assigning weights to each training sample, while unweighted
+            quantiles are computed by aggregating sibling samples. When the
+            number of training samples relative to siblings is small, weighted
+            quantiles can be more efficient to compute than unweighted ones.
+
+        weighted_leaves : bool, default=True
+            Weight samples inversely to the size of their leaf node.
+            Only used if `weighted_quantile=True`.
+
+        aggregate_leaves_first : bool, default=True
+            Calculate predictions using aggregated leaf values. If True, a
+            single prediction is calculated over the aggregated leaf values.
+            If False, a prediction is calculated for each leaf and aggregated.
+
+        oob_score : bool, default=False
+            Only use out-of-bag (OOB) samples to predict quantiles.
+
+        Other Parameters
+        ----------------
+        indices : list, default=None
+            List of training indices that correspond to X indices. An index of
+            -1 can be used to specify rows omitted from the training set. By
+            default, assumes all X indices correspond to all training indices.
+            Only used if `oob_score=True`.
+
+        duplicates : list of lists, default=None
+            List of sets of functionally identical indices.
+            Only used if `oob_score=True`.
+
+        Returns
+        -------
+        y_pred : array of shape (n_samples, n_quantiles)
+            If quantiles is set to None, then return ``E(Y | X)``. Else, for
+            all quantiles, return ``y`` at ``q`` for which ``F(Y=y|x) = q``,
+            where ``q`` is the quantile.
+        """
+        check_is_fitted(self)
+        # Check data.
+        X = self._validate_X_predict(X)
+
+        if quantiles is None:
+            quantiles = [-1]
+
+        if not isinstance(quantiles, list):
+            quantiles = [quantiles]
+
+        if not isinstance(interpolation, (bytes, bytearray)):
+            interpolation = interpolation.encode()
+
+        if oob_score:
+            if not self.bootstrap:
+                raise ValueError("Out-of-bag estimation only available if bootstrap=True.")
+
+            X_leaves, X_indices = self._oob_samples(X, indices, duplicates)
+
+            if (X_indices.sum(axis=1) == 0).any():
+                warn(
+                    "Some inputs do not have OOB scores. "
+                    "This probably means too few trees were used "
+                    "to compute any reliable OOB estimates."
+                )
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                X_leaves = self.apply(X)
+            X_indices = None
+
+        ##############################
+        forest_ecdf = self.forest_.generate_ecdf(
+            quantiles,
+            X_leaves,
+            X_indices,
+            interpolation,
+            weighted_leaves,
+            weighted_quantile,
+            aggregate_leaves_first,
+        )
+
+        return forest_ecdf
+        #############################
 
         y_pred = self.forest_.predict(
             quantiles,

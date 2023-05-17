@@ -1035,7 +1035,7 @@ cdef class QuantileForest:
 
         return np.asarray(preds_view)
 
-        cpdef np.ndarray generate_ecdf(
+    cpdef np.ndarray generate_ecdf(
         self,
         vector[double] quantiles,
         SIZE_t[:, :] X_leaves,
@@ -1098,6 +1098,10 @@ cdef class QuantileForest:
         cdef vector[double] pred
         cdef np.ndarray[DOUBLE_t, ndim=2] preds
         cdef double[:, :] preds_view
+
+        ########################
+        cdef vector[double] ecdf
+        ########################
 
         n_quantiles = len(quantiles)
         n_samples = X_leaves.shape[0]
@@ -1208,7 +1212,21 @@ cdef class QuantileForest:
                             if train_idx != 0:
                                 leaf_weights[train_idx-1] += train_wgt
 
+                        ###################
+                        ecdf = calc_ecdf(
+                            self.y_train,
+                            leaf_weights,
+                            quantiles,
+                            interpolation,
+                            issorted=True,
+                        )
+
+                        with gil:
+                            return np.asarray(ecdf)
+                        ###################
+
                         # Calculate quantiles (or mean).
+                        """
                         if not use_mean:
                             pred = calc_weighted_quantile(
                                 self.y_train,
@@ -1227,6 +1245,7 @@ cdef class QuantileForest:
                                     leaf_weights,
                                 )
                                 leaf_preds[0].push_back(pred[0])
+                        """
                 else:
                     # For each list of training indices, calculate output.
                     for j in range(<SIZE_t>(train_indices.size())):
@@ -1243,6 +1262,20 @@ cdef class QuantileForest:
                                     self.y_train[train_idx-1]
                                 )
 
+                        ###################
+                        ecdf = calc_ecdf(
+                            self.y_train,
+                            leaf_weights,
+                            quantiles,
+                            interpolation,
+                            issorted=True,
+                        )
+
+                        with gil:
+                            return np.asarray(ecdf)
+                        ###################
+
+                        """
                         # Calculate quantiles (or mean).
                         if not use_mean:
                             pred = calc_quantile(
@@ -1278,7 +1311,7 @@ cdef class QuantileForest:
                     elif leaf_preds[0].size() > 1:
                         preds_view[i, 0] = calc_mean(leaf_preds[0])
 
-        return np.asarray(preds_view)
+        return np.asarray(preds_view)"""
 
 
     cpdef np.ndarray quantile_ranks(
