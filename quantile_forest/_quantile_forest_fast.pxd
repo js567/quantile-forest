@@ -30,6 +30,18 @@ cdef class QuantileForest:
         bint aggregate_leaves_first=*,
     )
 
+    # NEW FUNCTION
+    cpdef np.ndarray generate_ecdf(
+        self,
+        vector[double] quantiles,
+        SIZE_t[:, :] X_leaves,
+        UINT8_t[:, :] X_indices=*,
+        char* interpolation=*,
+        bint weighted_quantile=*,
+        bint weighted_leaves=*,
+        bint aggregate_leaves_first=*,
+    )
+
     cpdef np.ndarray quantile_ranks(
         self,
         double[:] y_scores,

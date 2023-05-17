@@ -364,6 +364,7 @@ class BaseForestQuantileRegressor(ForestRegressor):
         unsampled_indices = _generate_unsampled_indices(sample_indices, duplicates=duplicates)
         return np.asarray(unsampled_indices)
 
+    # Test comment
     def predict(
         self,
         X,
